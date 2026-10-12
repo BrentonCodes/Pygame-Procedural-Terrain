@@ -42,20 +42,20 @@ clock = pygame.time.Clock()
 
 font = pygame.font.SysFont(None, 40)
 
-CHUNK_SIZE = 16
-RENDER_DISTANCE = 8
+CHUNK_SIZE = 64
+RENDER_DISTANCE = 6
 
 chunks = {}
 
 def get_chunk(chunk_x, chunk_y):
-    key = (chunk_x, chunk_y)
+	key = (chunk_x, chunk_y)
 
-    if key not in chunks:
-        chunks[key] = chunk_generator.Chunk(
-            chunk_x, chunk_y, CHUNK_SIZE
-        )
+	if key not in chunks:
+		chunks[key] = chunk_generator.Chunk(
+			chunk_x, chunk_y, CHUNK_SIZE
+		)
 
-    return chunks[key]
+	return chunks[key]
 
 player_camera = camera.Camera()
 
@@ -102,13 +102,24 @@ while running:
 
 	for chunk in visible_chunks:
 
-		verts = chunk.mesh[0]
-		faces = chunk.mesh[1]
-		colrs = chunk.mesh[2]
+		distance = numpy.linalg.norm(numpy.array(chunk.position) - numpy.array(player_camera.position))
 
-		chunk_matrix = transform.create_matrix(chunk.position, chunk.rotation)
+		mesh = chunk.mesh1
 
-		points = transform.transform(verts, chunk_matrix, view_matrix, player_camera.f)
+		if distance > 512:
+			mesh = chunk.mesh4
+		elif distance > 256:
+			mesh = chunk.mesh3
+		elif distance > 128:
+			mesh = chunk.mesh2
+		else:
+			mesh = chunk.mesh1
+
+		verts = mesh[0]
+		faces = mesh[1]
+		colrs = mesh[2]
+
+		points = transform.transform(verts, chunk.matrix, view_matrix, player_camera.f)
 
 		draw_mesh(framebuffer, depthbuffer, points, faces, colrs)
 
