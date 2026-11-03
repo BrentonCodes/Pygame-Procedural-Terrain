@@ -1,4 +1,6 @@
 import numpy
+from numba import njit
+
 
 def rx_matrix(angle):
 	c, s = numpy.cos(angle), numpy.sin(angle)
@@ -23,7 +25,56 @@ def create_matrix(pos, rot, invert=False):
 
 	return (R @ T) if invert else (T @ R)
 
+@njit(cache=True, inline="always")
+def matmul4(a, b):
+	"""4x4 matrix product without depending on an external BLAS."""
+
+	out = numpy.empty((4, 4), dtype=numpy.float32)
+
+	for i in range(4):
+		for j in range(4):
+			out[i, j] = (
+				a[i, 0] * b[0, j] +
+				a[i, 1] * b[1, j] +
+				a[i, 2] * b[2, j] +
+				a[i, 3] * b[3, j]
+			)
+
+	return out
+
+@njit(cache=True)
+def transform_vertices(vertices, matrix, focal_length, out):
+	"""Project vertices with a combined model-view matrix into screen space."""
+
+	n = vertices.shape[0]
+
+	m00 = matrix[0, 0]; m01 = matrix[0, 1]; m02 = matrix[0, 2]; m03 = matrix[0, 3]
+	m10 = matrix[1, 0]; m11 = matrix[1, 1]; m12 = matrix[1, 2]; m13 = matrix[1, 3]
+	m20 = matrix[2, 0]; m21 = matrix[2, 1]; m22 = matrix[2, 2]; m23 = matrix[2, 3]
+
+	eps = 1e-6
+
+	for i in range(n):
+
+		x = vertices[i, 0]
+		y = vertices[i, 1]
+		z = vertices[i, 2]
+
+		tx = m00 * x + m01 * y + m02 * z + m03
+		ty = m10 * x + m11 * y + m12 * z + m13
+		tz = m20 * x + m21 * y + m22 * z + m23
+
+		if tz > -eps and tz < eps:
+			tz = -eps if tz < 0.0 else eps
+
+		scale = focal_length / tz
+
+		out[i, 0] = tx * scale
+		out[i, 1] = -ty * scale
+		out[i, 2] = tz
+
 def transform(vertices, model_matrix, view_matrix, focal_length):
+	"""Numpy reference implementation, kept for compatibility."""
 
 	v_hom = numpy.pad(vertices, ((0, 0), (0, 1)), mode='constant', constant_values=1.0)
 
